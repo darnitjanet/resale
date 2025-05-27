@@ -1,5 +1,5 @@
 @echo off
-:: Retool + MySQL backup script with date-based folders and Git push
+:: Retool + MySQL backup script with safety checks and Git push
 
 :: Set paths
 set "repoPath=C:\Users\mrsja\resale"
@@ -31,18 +31,28 @@ if "%latestFile%"=="" (
 
 :: Show the most recent file and ask for confirmation
 echo Most recent file found:
-echo %latestFile%
+echo File found: "%latestFile%"
 echo.
 choice /m "Use this file?"
 if errorlevel 2 goto customPath
 
 :: Use the latest file
 set "filePath=%latestFile%"
+if "%filePath%"=="" (
+    echo ❌ File path is empty. Something went wrong.
+    pause
+    exit /b
+)
 goto copyFile
 
 :customPath
 echo Enter full path to your Retool JSON file:
 set /p filePath=
+if "%filePath%"=="" (
+    echo ❌ File path is empty.
+    pause
+    exit /b
+)
 
 :copyFile
 :: Extract just the filename
@@ -59,6 +69,9 @@ echo 🧠 Exporting MySQL schema...
 :: Git operations
 git add .
 git commit -m "Retool + schema backup for %today%"
+
+:: Attempt to pull before pushing (avoids rejection)
+git pull origin main --rebase
 git push origin main
 
 :: Open GitHub repo in browser
