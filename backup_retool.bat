@@ -1,9 +1,9 @@
 @echo off
-:: Retool + MySQL backup script with safety checks and Git push
+:: Retool + MySQL backup script with safe path detection and Git automation
 
 :: Set paths
 set "repoPath=C:\Users\mrsja\resale"
-set "sourceFolder=C:\Users\mrsja\retool_backups"
+set "sourceFolder=C:\Users\mrsja\resale\backups"
 set "mysqldumpPath=C:\Tools\MySQL\bin\mysql-8.0.41-winx64\bin\mysqldump.exe"
 set "databaseName=resale_inventory"
 set "mysqlUser=root"
@@ -17,21 +17,23 @@ for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') d
 :: Create the dated backup folder
 mkdir backups\%today% >nul 2>&1
 
-:: Find the most recently modified JSON file
+:: Find the most recently modified JSON file using PowerShell
 set "latestFile="
 for /f "delims=" %%F in ('powershell -NoProfile -Command ^
-  "Get-ChildItem -Path '%sourceFolder%' -Filter *.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | ForEach-Object { $_.FullName }"') do set "latestFile=%%F"
+  "$f = Get-ChildItem -Path ''%sourceFolder%'' -Filter *.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { $f.FullName }"') do (
+    set "latestFile=%%F"
+)
 
 :: If no file was found, bail out
-if "%latestFile%"=="" (
-    echo ❌ No recent JSON file found in %sourceFolder%.
+if not defined latestFile (
+    echo ❌ Could not find a recent JSON file in %sourceFolder%.
     pause
     exit /b
 )
 
 :: Show the most recent file and ask for confirmation
 echo Most recent file found:
-echo File found: "%latestFile%"
+echo "%latestFile%"
 echo.
 choice /m "Use this file?"
 if errorlevel 2 goto customPath
@@ -70,7 +72,7 @@ echo 🧠 Exporting MySQL schema...
 git add .
 git commit -m "Retool + schema backup for %today%"
 
-:: Attempt to pull before pushing (avoids rejection)
+:: Pull before push to avoid rejection
 git pull origin main --rebase
 git push origin main
 
