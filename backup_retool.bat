@@ -1,14 +1,15 @@
 @echo off
-:: Retool + MySQL backup script with safe path detection and Git automation
+:: Cosmo's Retool + MySQL backup script with smart copy + GitHub automation
 
-:: Set paths
+:: === CONFIGURATION ===
 set "repoPath=C:\Users\mrsja\resale"
 set "sourceFolder=C:\Users\mrsja\resale\backups"
 set "mysqldumpPath=C:\Tools\MySQL\bin\mysql-8.0.41-winx64\bin\mysqldump.exe"
 set "databaseName=resale_inventory"
 set "mysqlUser=root"
+set "tempFile=%temp%\latest_json_path.txt"
 
-:: Go to the Git repo
+:: === SETUP ===
 cd /d "%repoPath%"
 
 :: Get today's date (YYYY-MM-DD)
@@ -17,21 +18,20 @@ for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') d
 :: Create the dated backup folder
 mkdir backups\%today% >nul 2>&1
 
-:: Find the most recently modified JSON file using PowerShell
-set "latestFile="
-for /f "delims=" %%F in ('powershell -NoProfile -Command ^
-  "$f = Get-ChildItem -Path ''%sourceFolder%'' -Filter *.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { $f.FullName }"') do (
-    set "latestFile=%%F"
-)
+:: === FIND LATEST JSON FILE ===
+powershell -NoProfile -Command ^
+  "$f = Get-ChildItem -Path '%sourceFolder%' -Recurse -Filter *.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { $f.FullName }" > "%tempFile%"
 
-:: If no file was found, bail out
-if not defined latestFile (
-    echo ❌ Could not find a recent JSON file in %sourceFolder%.
+set /p latestFile=<"%tempFile%"
+del "%tempFile%"
+
+if "%latestFile%"=="" (
+    echo ❌ Could not find a recent JSON file in %sourceFolder% or subfolders.
     pause
     exit /b
 )
 
-:: Show the most recent file and ask for confirmation
+:: === CONFIRM FILE ===
 echo Most recent file found:
 echo "%latestFile%"
 echo.
@@ -60,23 +60,28 @@ if "%filePath%"=="" (
 :: Extract just the filename
 for %%F in ("%filePath%") do set "fileName=%%~nxF"
 
-:: Copy to backup folder
-copy "%filePath%" "backups\%today%\%fileName%"
+:: Check if file already in today's folder
+echo.
+echo 🔎 Checking if file is already in the backup folder...
+if /i "%filePath%"=="%repoPath%\backups\%today%\%fileName%" (
+    echo 🔄 File is already in place. Skipping copy.
+) else (
+    echo 📄 Copying file to backups\%today%...
+    copy "%filePath%" "backups\%today%\%fileName%"
+)
 
-:: Export MySQL schema to the same folder
+:: === EXPORT MYSQL SCHEMA ===
 echo.
 echo 🧠 Exporting MySQL schema...
 "%mysqldumpPath%" -u %mysqlUser% -p --no-data %databaseName% > "backups\%today%\schema-%today%.sql"
 
-:: Git operations
+:: === GIT MAGIC ===
 git add .
 git commit -m "Retool + schema backup for %today%"
-
-:: Pull before push to avoid rejection
 git pull origin main --rebase
 git push origin main
 
-:: Open GitHub repo in browser
+:: === ALL DONE ===
 start https://github.com/darnitjanet/resale
 
 echo.
