@@ -14,4 +14,23 @@ Backups are created using a local script (`backup_retool.bat`) that:
 Each backup is stored in its own dated folder for easy organization and rollback.
 
 ## 📁 Folder Structure
+```bash
+backups/
+  └── 2025-05-26/
+      └── DarnItJanetInventory-Git.json
+```
 
+## 💡 How to Restore
+
+1. Download a backup JSON file from one of the dated folders
+2. Go to [Retool](https://retool.com)
+3. Click `Import` → select the JSON file
+4. Retool will create a new app with that version
+
+## 🛠 Future Plans
+
+- Add MySQL schema exports
+- Create a restore script
+- Schedule automatic backups weekly
+
+---
